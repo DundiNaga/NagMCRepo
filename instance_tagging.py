@@ -53,8 +53,8 @@ def main():
         for instance in reservation['Instances']:
             instance_id = instance['InstanceId']
             tags = [
-                {'Key': 'application-id', 'Value': 'your_application_id'},  
-                {'Key': 'environment-name', 'Value': 'your_environment_name'},  
+                {'Key': 'application-id', 'Value': 'EDI_Application'},  
+                {'Key': 'environment-name', 'Value': 'Test'},  
             ]
             add_tags_to_instance(instance_id, tags)
             add_tags_to_dependent_resources(instance_id, tags)
