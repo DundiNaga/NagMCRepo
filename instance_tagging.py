@@ -1,64 +1,45 @@
+# Import the Boto3 library to interact with AWS services
 import boto3
+from pprint import pprint
 
-ec2_client = boto3.client('ec2')
-region_name = 'region_name' 
+# Create a session
+session = boto3.Session(profile_name='default', region_name='us-east-1')
 
-def list_total_instances(region):
-    try:
-        response = ec2_client.describe_instances(Filters=[{'Name': 'availability-zone', 'Values': [region + '*']}])
-        instances = response['Reservations']
-        
-        return instances
+# Create a client for the EC2 service
+ec2_client = session.client('ec2', 'us-east-1')
 
-    except Exception as e:
-        print("Error listing instances:", str(e))
-        return []
+def get_instances_with_tags():
+    instances_list = []
+
+    response = ec2_client.describe_instances()
+    for reservations in response['Reservations']:
+        for instances in reservations['Instances']:
+            instance_id = instances['InstanceId']
+            instance_tags = instances.get('Tags', [])
+            instance_tags_dict = {tag['Key']: tag['Value'] for tag in instance_tags}
+            instances_list.append({'InstanceId': instance_id, 'Tags': instance_tags_dict})
+
+    return instances_list
 
 def add_tags_to_instance(instance_id, tags):
     try:
         ec2_client.create_tags(Resources=[instance_id], Tags=tags)
-        print(f"Tags added to instance {instance_id}")
+        print(f"Tags added successfully to InstanceId: {instance_id}")
     except Exception as e:
-        print(f"Error adding tags to instance {instance_id}:", str(e))
-
-def add_tags_to_dependent_resources(instance_id, tags):
-    try:
-        response = ec2_client.describe_instance_attribute(InstanceId=instance_id, Attribute='blockDeviceMapping')
-        volumes = response['BlockDeviceMappings']
-        
-        for volume in volumes:
-            volume_id = volume['Ebs']['VolumeId']
-            ec2_client.create_tags(Resources=[volume_id], Tags=tags)
-            print(f"Tags added to volume {volume_id}")
-        
-        response = ec2_client.describe_iam_instance_profile_associations(Filters=[{'Name': 'instance-id', 'Values': [instance_id]}])
-        iam_associations = response['IamInstanceProfileAssociations']
-        
-        for iam_association in iam_associations:
-            instance_profile_arn = iam_association['IamInstanceProfile']['Arn']
-            ec2_client.create_tags(Resources=[instance_profile_arn], Tags=tags)
-            print(f"Tags added to instance profile {instance_profile_arn}")
-
-    except Exception as e:
-        print("Error adding tags to dependent resources:", str(e))
+        print(f"Failed to add tags to InstanceId: {instance_id}")
+        print(f"Error: {str(e)}")
 
 def main():
-    instances = list_total_instances(region_name)
+    instances_list = get_instances_with_tags()
+    pprint(instances_list)
 
-    if not instances:
-        print(f"No instances found in the {region_name} region.")
-        return
+    instance_ids = input("Enter the Instance ID(s) to add tags (comma-separated): ").split(',')
+    tags_key = input("Enter the tag key: ")
+    tags_value = input("Enter the tag value: ")
 
-    for reservation in instances:
-        for instance in reservation['Instances']:
-            instance_id = instance['InstanceId']
-            tags = [
-                {'Key': 'application-id', 'Value': 'EDI_Application'},  
-                {'Key': 'environment-name', 'Value': 'Test'},  
-            ]
-            add_tags_to_instance(instance_id, tags)
-            add_tags_to_dependent_resources(instance_id, tags)
+    tags_to_add = [{'Key': tags_key, 'Value': tags_value}]
+    for instance_id in instance_ids:
+        add_tags_to_instance(instance_id.strip(), tags_to_add)
 
 if __name__ == "__main__":
     main()
-
